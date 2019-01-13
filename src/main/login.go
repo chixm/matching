@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/rs/xid"
 )
@@ -68,6 +69,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 }
 
 type LoginInfo struct {
+	mutex    sync.Mutex
 	UserId   string `json:"userId"`
 	Password string `json:"password"`
 }
@@ -89,6 +91,8 @@ func (m *LoginInfo) validLoginInfo() bool {
 // Create Unique Hash to define User
 func (m *LoginInfo) makeGuid() string {
 	idHash := xid.New()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	loggedInUsers.GuidMap[m.UserId] = idHash.String()
 	loggedInUsers.UserIdMap[idHash.String()] = m.UserId
 	return idHash.String()
