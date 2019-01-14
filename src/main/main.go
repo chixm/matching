@@ -11,6 +11,7 @@ var serverMutex *http.ServeMux
 
 // Matching Server with Websocket Client for Online Games
 func main() {
+	log.Println(`Server Start`)
 	var exit = make(chan interface{})
 	// サーバー設定
 	server, serverMutex = CreateServer(8080)
@@ -25,7 +26,7 @@ func main() {
 }
 
 func LaunchServer(exit chan interface{}, server *http.Server, mutex *http.ServeMux) {
-
+	log.Println(`Launching Server`)
 	UrlSettings(mutex)
 
 	err := server.ListenAndServe()
