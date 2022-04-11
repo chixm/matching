@@ -33,15 +33,17 @@ type Room struct {
 }
 
 // 部屋を作成
-func NewRoom() (*Room, error) {
+func NewRoom(u *User) (*Room, error) {
 	mux.Lock()
 	defer mux.Unlock()
 	newRoom := Room{}
 	roomAutoInc++
 	newRoom.ID = RoomID(roomAutoInc)
 	newRoom.Event = make(chan RoomEvent)
+	newRoom.Users = append(newRoom.Users, u) //部屋を作成した人は入る
 	// 新しいルームを登録
 	currentRooms[newRoom.ID] = &newRoom
+	u.JoinedRoom = &newRoom
 	return &newRoom, nil
 }
 

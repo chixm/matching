@@ -7,6 +7,9 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// 現在ログインしているユーザ
+var currentUsers map[UserID]*User
+
 // ユーザID型エイリアス
 type UserID string
 
@@ -18,7 +21,7 @@ type User struct {
 	JoinedRoom *Room           // 参加しているルーム
 }
 
-// 部屋に入る
+// 新しい部屋に入る
 func (m *User) JoinRoom(room *Room) error {
 	if room == nil {
 		return errors.New(`room not found`)
@@ -29,13 +32,22 @@ func (m *User) JoinRoom(room *Room) error {
 	return nil
 }
 
-// 部屋から出る
+// 現在所属してる部屋から出る
 func (m *User) LeaveRoom() error {
 	if m.JoinedRoom == nil {
-		return errors.New(`user has not joint room`)
+		return errors.New(`user has not joined room`)
 	}
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	m.JoinedRoom = nil
 	return nil
+}
+
+// ユーザを作成する 同時に現存ユーザmapに登録
+func NewUser(id UserID, conn *websocket.Conn) *User {
+	u := User{ID: id, conn: conn}
+	mux.Lock()
+	defer mux.Unlock()
+	currentUsers[id] = &u
+	return &u
 }
