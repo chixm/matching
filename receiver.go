@@ -11,6 +11,8 @@ func WebsocketTextMessageReceiver(conn *websocket.Conn, msg []byte) {
 	var req message
 	// 届いたメッセージにIDを振る
 	req.ID = makeUniqueID()
+	// エラー時処理
+	defer recoverFromPanic(conn, req.ID)
 
 	if err := json.Unmarshal(msg, &req); err != nil {
 		panic(err)
@@ -56,4 +58,20 @@ type message struct {
 type messageJoinRoom struct {
 	message
 	RoomID RoomID `json:"roomId"`
+}
+
+// サーバが送信する側のベースメッセージ
+type sendingMessage struct {
+	ID         string      `json:"messageId"`
+	Code       int         `json:"code"`   // 成功・失敗等のコード
+	Data       interface{} `json:"data"`   // サーバ側からのデータ
+	ErrMessage string      `json:"errMsg"` //エラー時のメッセージ
+}
+
+// パニック時の汎用レスポンス
+func recoverFromPanic(conn *websocket.Conn, messageID string) {
+	if r := recover(); r != nil {
+		// TODO: Code群の定義
+		conn.WriteJSON(sendingMessage{ID: messageID, ErrMessage: `error`, Code: 999})
+	}
 }
