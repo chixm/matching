@@ -3,12 +3,13 @@ package matching
 import (
 	"encoding/json"
 
+	"github.com/chixm/matching/logger"
 	"github.com/gorilla/websocket"
 )
 
 // ユーザからのメッセージを最初に受け取る箇所
 func WebsocketTextMessageReceiver(conn *websocket.Conn, msg []byte) {
-	var req message
+	var req Message
 	// 届いたメッセージにIDを振る
 	req.ID = makeUniqueID()
 	// エラー時処理
@@ -19,9 +20,9 @@ func WebsocketTextMessageReceiver(conn *websocket.Conn, msg []byte) {
 	} else {
 		var u *User
 		// 既にいればそのユーザをいなければ作る
-		if existingUser, ok := currentUsers[UserID(req.ID)]; ok {
+		if existingUser, ok := currentUsers[UserID(req.UserID)]; ok {
 			u = existingUser
-			if u.conn != conn { // 接続切れの場合後からつないだconnectionで上書き
+			if u.conn != conn { // 接続切れの場合、後からつないだconnectionで上書き
 				u.conn = conn
 			}
 		} else {
@@ -31,12 +32,17 @@ func WebsocketTextMessageReceiver(conn *websocket.Conn, msg []byte) {
 		// ユーザのアクションの処理
 		switch req.Act {
 		case `joinRoom`:
-			var joinMsg messageJoinRoom
+			var joinMsg MessageJoinRoom
 			err = json.Unmarshal(msg, &joinMsg)
 			if err != nil {
 				panic(err)
 			}
-			u.JoinRoom(currentRooms[joinMsg.RoomID])
+			room, ok := currentRooms[joinMsg.RoomID]
+			if !ok {
+				panic(`room does not exists`)
+			}
+			room.Users = append(room.Users, u)
+			u.JoinRoom(room)
 		case `leaveRoom`:
 			u.LeaveRoom()
 		case `createRoom`:
@@ -49,14 +55,15 @@ func WebsocketTextMessageReceiver(conn *websocket.Conn, msg []byte) {
 }
 
 // ユーザから送信されてくるメッセージの基本形
-type message struct {
+type Message struct {
 	ID     string `json:"messageId"` //サーバ内部で一意のメッセージを見分けるためのID
 	Act    string `json:"action"`    // ユーザが行いたい行動内容
 	UserID string `json:"userId"`    // ユーザを一意に識別する
 }
 
-type messageJoinRoom struct {
-	message
+// ユーザからのルームに参加リクエスト
+type MessageJoinRoom struct {
+	Message
 	RoomID RoomID `json:"roomId"`
 }
 
@@ -71,6 +78,7 @@ type sendingMessage struct {
 // パニック時の汎用レスポンス
 func recoverFromPanic(conn *websocket.Conn, messageID string) {
 	if r := recover(); r != nil {
+		logger.Errorln(r)
 		// TODO: Code群の定義
 		conn.WriteJSON(sendingMessage{ID: messageID, ErrMessage: `error`, Code: 999})
 	}
