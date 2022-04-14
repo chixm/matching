@@ -41,10 +41,15 @@ func WebsocketTextMessageReceiver(conn *websocket.Conn, msg []byte) {
 			if !ok {
 				panic(`room does not exists`)
 			}
-			room.Users = append(room.Users, u)
-			u.JoinRoom(room)
+			room.JoinUser(u)
 		case `leaveRoom`:
-			u.LeaveRoom()
+			room, ok := currentRooms[u.JoinedRoom.ID]
+			if ok {
+				err := room.LeaveRoom(u)
+				if err != nil {
+					panic(err)
+				}
+			}
 		case `createRoom`:
 			_, err := NewRoom(u)
 			if err != nil {
