@@ -3,6 +3,8 @@ package matching
 import (
 	"errors"
 	"sync"
+
+	"github.com/chixm/matching/logger"
 )
 
 // 全体ロック
@@ -23,6 +25,7 @@ type RoomEvent int
 const (
 	RoomUserJoined = RoomEvent(1)
 	RoomUserLeft   = RoomEvent(2)
+	RoomDismiss    = RoomEvent(3)
 )
 
 // 部屋に関する構造体
@@ -80,6 +83,7 @@ func NewRoom(u *User) (*Room, error) {
 	// 新しいルームを登録
 	currentRooms[newRoom.ID] = &newRoom
 	u.JoinedRoom = &newRoom
+	go detectRoomEvents(&newRoom)
 	return &newRoom, nil
 }
 
@@ -104,4 +108,28 @@ func GetCurrentRooms() (map[RoomID]*Room, error) {
 		return currentRooms, nil
 	}
 	return nil, errors.New(`no room info found`)
+}
+
+// 部屋で起こったことを各ユーザに知らせる
+func detectRoomEvents(r *Room) {
+	defer logger.Infoln(`end of room event detection`)
+roomEvent:
+	for e := range r.Event {
+		switch e {
+		case RoomUserJoined:
+			for _, u := range r.Users {
+				// tell all new users someone joined the room
+				logger.Infoln(u.ID)
+				//u.conn.WriteJSON()
+			}
+		case RoomUserLeft:
+			for _, u := range r.Users {
+				// tell all new users someone left the room
+				logger.Infoln(u.ID)
+				//u.conn.WriteJSON()
+			}
+		case RoomDismiss: //解散：監視解除
+			break roomEvent
+		}
+	}
 }
