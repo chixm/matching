@@ -32,7 +32,7 @@ func WebsocketTextMessageReceiver(conn *websocket.Conn, msg []byte) {
 		// ユーザのアクションの処理
 		switch req.Act {
 		case `joinRoom`:
-			var joinMsg MessageJoinRoom
+			var joinMsg MessageOfRoom
 			err = json.Unmarshal(msg, &joinMsg)
 			if err != nil {
 				panic(err)
@@ -66,8 +66,8 @@ type Message struct {
 	UserID string `json:"userId"`    // ユーザを一意に識別する
 }
 
-// ユーザからのルームに参加リクエスト
-type MessageJoinRoom struct {
+// ユーザからのルームに参加リクエスト等
+type MessageOfRoom struct {
 	Message
 	RoomID RoomID `json:"roomId"`
 }

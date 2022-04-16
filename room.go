@@ -2,6 +2,7 @@ package matching
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/chixm/matching/logger"
@@ -19,27 +20,19 @@ var currentRooms map[RoomID]*Room
 // 部屋番号
 type RoomID int
 
-// 部屋のイベント
-type RoomEvent int
-
-const (
-	RoomUserJoined = RoomEvent(1)
-	RoomUserLeft   = RoomEvent(2)
-	RoomDismiss    = RoomEvent(3)
-)
-
 // 部屋に関する構造体
 type Room struct {
 	mux   sync.Mutex
-	ID    RoomID         `json:"roomId"`
-	Users []*User        `json:"users"`
-	Event chan RoomEvent // イベント検知チャンネル
+	ID    RoomID     `json:"roomId"`
+	Users []*User    `json:"users"`
+	Event chan Event // イベント検知チャンネル
 }
 
 // 新しい部屋に入る
 func (m *Room) JoinUser(user *User) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
+	m.Event <- Event{ev: RoomUserJoined, user: user}
 	user.mux.Lock()
 	defer user.mux.Unlock()
 	m.Users = append(m.Users, user)
@@ -54,6 +47,7 @@ func (m *Room) LeaveRoom(user *User) error {
 	}
 	m.mux.Lock()
 	defer m.mux.Unlock()
+	m.Event <- Event{ev: RoomUserLeft, user: user}
 	// リスト作り直し
 	var newList []*User
 	for _, ou := range m.Users {
@@ -78,7 +72,7 @@ func NewRoom(u *User) (*Room, error) {
 	newRoom := Room{}
 	roomAutoInc++
 	newRoom.ID = RoomID(roomAutoInc)
-	newRoom.Event = make(chan RoomEvent)
+	newRoom.Event = make(chan Event)
 	newRoom.Users = append(newRoom.Users, u) //部屋を作成した人は入る
 	// 新しいルームを登録
 	currentRooms[newRoom.ID] = &newRoom
@@ -91,12 +85,19 @@ func NewRoom(u *User) (*Room, error) {
 func RemoveRoom(roomID RoomID) {
 	mux.Lock()
 	defer mux.Unlock()
-	for _, u := range currentRooms[roomID].Users {
+	room, ok := currentRooms[roomID]
+	if !ok {
+		logger.Infoln(fmt.Sprintf(`room %d not found`, roomID))
+		return
+	}
+	for _, u := range room.Users {
 		// 全ユーザ削除
 		u.mux.Lock()
 		u.JoinedRoom = nil
 		u.mux.Unlock()
 	}
+	// 管理goroutineに終了通知
+	room.Event <- Event{ev: RoomDismiss}
 	delete(currentRooms, roomID)
 }
 
@@ -115,21 +116,25 @@ func detectRoomEvents(r *Room) {
 	defer logger.Infoln(`end of room event detection`)
 roomEvent:
 	for e := range r.Event {
-		switch e {
+		switch e.ev {
 		case RoomUserJoined:
 			for _, u := range r.Users {
-				// tell all new users someone joined the room
-				logger.Infoln(u.ID)
-				//u.conn.WriteJSON()
+				// tell all users someone joined the room
+				u.conn.WriteJSON(annouce{Message: string(e.user.ID) + ` joined the room`, User: e.user})
 			}
 		case RoomUserLeft:
 			for _, u := range r.Users {
-				// tell all new users someone left the room
-				logger.Infoln(u.ID)
-				//u.conn.WriteJSON()
+				// tell all users someone left the room
+				u.conn.WriteJSON(annouce{Message: string(e.user.ID) + ` left the room`, User: e.user})
 			}
 		case RoomDismiss: //解散：監視解除
 			break roomEvent
 		}
 	}
+}
+
+// ルーム内に拡散させる情報
+type annouce struct {
+	Message string `json:"message"`
+	User    *User  `json:"user"`
 }

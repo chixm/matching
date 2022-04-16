@@ -40,7 +40,7 @@ func TestUserJoinOtherUser(t *testing.T) {
 
 	matching.WebsocketTextMessageReceiver(conn, msg)
 
-	otherUser := matching.MessageJoinRoom{in, matching.RoomID(1)}
+	otherUser := matching.MessageOfRoom{in, matching.RoomID(1)}
 	otherUser.Act = `joinRoom`
 	otherUser.UserID = `samuel`
 
@@ -52,6 +52,41 @@ func TestUserJoinOtherUser(t *testing.T) {
 	rooms, _ := matching.GetCurrentRooms()
 
 	assert.Equal(t, len(rooms[1].Users), 2)
+}
+
+func TestMultiRoom(t *testing.T) {
+	// 入力
+	in := matching.Message{
+		Act:    `createRoom`,
+		UserID: `eric`,
+	}
+	msg, _ := json.Marshal(in)
+	conn := getConnection()
+
+	matching.WebsocketTextMessageReceiver(conn, msg)
+
+	in = matching.Message{
+		Act:    `createRoom`,
+		UserID: `deric`,
+	}
+
+	msg, _ = json.Marshal(in)
+	conn2 := getConnection()
+	matching.WebsocketTextMessageReceiver(conn2, msg)
+
+	// 2人がインしてるルームがある
+	rooms, _ := matching.GetCurrentRooms()
+
+	assert.Equal(t, len(rooms), 2)
+
+	leaveUser := matching.MessageOfRoom{in, matching.RoomID(1)}
+	leaveUser.Act = `leaveRoom`
+	leaveUser.UserID = `deric`
+	// deric leaves the room
+	msg, _ = json.Marshal(leaveUser)
+	matching.WebsocketTextMessageReceiver(conn2, msg)
+	// when no one is in the room, room dismisses
+	assert.Equal(t, len(rooms), 1)
 }
 
 func getConnection() *websocket.Conn {
